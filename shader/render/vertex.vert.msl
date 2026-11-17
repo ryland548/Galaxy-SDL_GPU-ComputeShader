@@ -1,0 +1,104 @@
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+#pragma clang diagnostic ignored "-Wmissing-braces"
+
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+template<typename T, size_t Num>
+struct spvUnsafeArray
+{
+    T elements[Num ? Num : 1];
+    
+    thread T& operator [] (size_t pos) thread
+    {
+        return elements[pos];
+    }
+    constexpr const thread T& operator [] (size_t pos) const thread
+    {
+        return elements[pos];
+    }
+    
+    device T& operator [] (size_t pos) device
+    {
+        return elements[pos];
+    }
+    constexpr const device T& operator [] (size_t pos) const device
+    {
+        return elements[pos];
+    }
+    
+    constexpr const constant T& operator [] (size_t pos) const constant
+    {
+        return elements[pos];
+    }
+    
+    threadgroup T& operator [] (size_t pos) threadgroup
+    {
+        return elements[pos];
+    }
+    constexpr const threadgroup T& operator [] (size_t pos) const threadgroup
+    {
+        return elements[pos];
+    }
+};
+
+// Implementation of signed integer mod accurate to SPIR-V specification
+template<typename Tx, typename Ty>
+inline Tx spvSMod(Tx x, Ty y)
+{
+    Tx remainder = x - y * (x / y);
+    return select(Tx(remainder + y), remainder, remainder == 0 || (x >= 0) == (y >= 0));
+}
+
+struct Particle
+{
+    float3 position;
+    float4 color;
+    float size;
+};
+
+struct Particle_1
+{
+    float3 position;
+    float4 color;
+    float size;
+};
+
+struct ParticleBuffer
+{
+    Particle_1 particles[1];
+};
+
+struct PushConstants
+{
+    float4x4 camMatrix;
+    float3 camRight;
+    float3 camUp;
+};
+
+constant spvUnsafeArray<float3, 6> _20 = spvUnsafeArray<float3, 6>({ float3(-0.07999999821186065673828125, -0.07999999821186065673828125, 0.0), float3(-0.07999999821186065673828125, 0.07999999821186065673828125, 0.0), float3(0.07999999821186065673828125, 0.07999999821186065673828125, 0.0), float3(-0.07999999821186065673828125, -0.07999999821186065673828125, 0.0), float3(0.07999999821186065673828125, 0.07999999821186065673828125, 0.0), float3(0.07999999821186065673828125, -0.07999999821186065673828125, 0.0) });
+
+struct main0_out
+{
+    float4 outColor [[user(locn0)]];
+    float4 gl_Position [[position]];
+};
+
+vertex main0_out main0(constant PushConstants& pushConstants [[buffer(0)]], const device ParticleBuffer& _42 [[buffer(1)]], uint gl_VertexIndex [[vertex_id]])
+{
+    main0_out out = {};
+    uint index = uint(int(gl_VertexIndex) / 6);
+    uint vertexIndex = uint(spvSMod(int(gl_VertexIndex), 6));
+    Particle particle;
+    particle.position = _42.particles[index].position;
+    particle.color = _42.particles[index].color;
+    particle.size = _42.particles[index].size;
+    float3 corner = _20[vertexIndex];
+    float3 worldPos = (particle.position + ((pushConstants.camRight * corner.x) * particle.size)) + ((pushConstants.camUp * corner.y) * particle.size);
+    out.gl_Position = pushConstants.camMatrix * float4(worldPos, 1.0);
+    out.outColor = particle.color;
+    return out;
+}
+

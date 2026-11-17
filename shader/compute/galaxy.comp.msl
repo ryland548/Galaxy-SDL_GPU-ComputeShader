@@ -1,0 +1,87 @@
+#pragma clang diagnostic ignored "-Wmissing-prototypes"
+
+#include <metal_stdlib>
+#include <simd/simd.h>
+
+using namespace metal;
+
+struct Uniform
+{
+    uint count;
+    float time;
+};
+
+struct Particle
+{
+    float3 position;
+    float4 color;
+    float size;
+};
+
+struct Particle_1
+{
+    float3 position;
+    float4 color;
+    float size;
+};
+
+struct Buffer
+{
+    Particle_1 data[1];
+};
+
+constant uint3 gl_WorkGroupSize [[maybe_unused]] = uint3(256u, 1u, 1u);
+
+static inline __attribute__((always_inline))
+float hash(thread const uint& n)
+{
+    uint state = (n * 747796405u) + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    word = (word >> 22u) ^ word;
+    return float(word) / 4294967296.0;
+}
+
+kernel void main0(constant Uniform& _53 [[buffer(0)]], device Buffer& _246 [[buffer(1)]], uint3 gl_GlobalInvocationID [[thread_position_in_grid]])
+{
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= _53.count)
+    {
+        return;
+    }
+    float baseRadius = 0.0500000007450580596923828125;
+    float radiusIncrement = 0.699999988079071044921875;
+    float percent = float(index) / 100000.0;
+    float curve = powr(percent, 1.5);
+    uint ringIndex = uint(curve * 100.0);
+    ringIndex = min(ringIndex, 99u);
+    uint param = (index * 3u) + 0u;
+    float randRadius = hash(param) - 0.5;
+    uint param_1 = (index * 3u) + 1u;
+    float randAngle = hash(param_1) - 0.5;
+    float radius = (baseRadius + (float(ringIndex) * radiusIncrement)) + (randRadius * mix(1.0, 12.0, float(ringIndex) / 100.0));
+    float armOffset = float(index % 8u) * 0.78539812564849853515625;
+    float spiralTwist = 0.0500000007450580596923828125;
+    float angle = ((armOffset + (float(ringIndex) * spiralTwist)) + _53.time) + (randAngle * 1.2999999523162841796875);
+    float2 pos = float2(cos(angle) * radius, sin(angle) * radius);
+    float squash = mix(0.64999997615814208984375, 1.0, smoothstep(0.5, 1.0, curve));
+    pos.y *= squash;
+    float baseTilt = 0.0;
+    float tiltIncrement = 0.04500000178813934326171875;
+    float tiltAngle = baseTilt + (tiltIncrement * float(ringIndex));
+    float s = sin(tiltAngle);
+    float c = cos(tiltAngle);
+    pos = float2((pos.x * c) - (pos.y * s), (pos.x * s) + (pos.y * c));
+    float3 finalPos = float3(pos, 0.0);
+    Particle particle;
+    particle.position = finalPos;
+    float t = float(ringIndex) / 99.90000152587890625;
+    float3 coreColor = float3(1.0, 0.3499999940395355224609375, 0.0);
+    float3 middleColor = float3(0.550000011920928955078125, 0.75, 1.0);
+    float3 color = mix(coreColor, middleColor, float3(smoothstep(0.0, 0.75, t)));
+    particle.color = float4(color, 1.0);
+    particle.size = 1.0;
+    _246.data[index].position = particle.position;
+    _246.data[index].color = particle.color;
+    _246.data[index].size = particle.size;
+}
+
